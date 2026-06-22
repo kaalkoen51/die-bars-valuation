@@ -54,6 +54,22 @@ Then open `http://127.0.0.1:5173/` and register that URL as your redirect URI.
    revealed — correct keeps the card, wrong discards it. Then it's the next
    player's turn.
 
+## Tokens & stealing
+
+Tokens add the bluff-and-steal layer from the real game. Set the **starting
+tokens** and **max tokens** per player in setup.
+
+- **Earn a token** — after a song is revealed, if the active player also said
+  the **title and artist** out loud correctly, click *Award 🪙* (honor system,
+  capped at the max).
+- **Spend a token to steal** — once the active player commits their placement,
+  a **steal phase** opens *before* the year is revealed. Any other player with a
+  token may spend it to place the song on **their own** timeline. On reveal:
+  - If the active player was **right**, they keep the card and challengers lose
+    the token they wagered.
+  - If the active player was **wrong**, the first challenger (in turn order) who
+    placed it **correctly** steals the card onto their timeline.
+
 ## Files
 
 | File | Purpose |

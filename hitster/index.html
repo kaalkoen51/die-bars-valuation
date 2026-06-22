@@ -67,10 +67,24 @@
         <div id="player-list" class="player-list"></div>
         <button id="add-player" class="ghost">+ Add player</button>
 
-        <label class="field inline">
-          <span>Cards to win</span>
-          <input type="number" id="target-cards" min="3" max="30" value="10" />
-        </label>
+        <div class="settings-grid">
+          <label class="field inline">
+            <span>Cards to win</span>
+            <input type="number" id="target-cards" min="3" max="30" value="10" />
+          </label>
+          <label class="field inline">
+            <span>Starting tokens 🪙</span>
+            <input type="number" id="start-tokens" min="0" max="10" value="2" />
+          </label>
+          <label class="field inline">
+            <span>Max tokens 🪙</span>
+            <input type="number" id="max-tokens" min="1" max="10" value="3" />
+          </label>
+        </div>
+        <p class="muted small">
+          Tokens are earned by naming a song's title &amp; artist, and spent to
+          <strong>steal</strong> a card when another player places it wrong.
+        </p>
       </div>
 
       <button id="start-btn" class="primary big" disabled>Start game</button>
@@ -98,16 +112,28 @@
           <div class="mystery">🎧 <span id="mystery-label">Mystery song playing…</span></div>
         </div>
 
+        <!-- challenge / steal phase -->
+        <div id="challenge-panel" class="challenge-panel hidden">
+          <h3>🪙 Steal phase</h3>
+          <p class="muted small" id="challenge-text"></p>
+          <div id="challenge-buttons" class="challenge-buttons"></div>
+          <button id="reveal-btn" class="primary">Reveal the year</button>
+        </div>
+
         <div id="reveal" class="reveal hidden"></div>
       </div>
 
       <div class="card">
-        <h3>Your timeline</h3>
-        <p class="muted small">Tap the gap where the mystery song fits by release year (oldest → newest).</p>
+        <h3 id="timeline-owner">Your timeline</h3>
+        <p class="muted small" id="timeline-help">Tap the gap where the mystery song fits by release year (oldest → newest).</p>
         <div id="timeline" class="timeline"></div>
       </div>
 
       <div id="turn-actions" class="turn-actions hidden">
+        <div id="naming-bonus" class="naming-bonus hidden">
+          <span id="naming-text"></span>
+          <button id="award-token-btn" class="ghost">Award 🪙</button>
+        </div>
         <button id="next-turn-btn" class="primary big">Next player ▶</button>
       </div>
     </section>

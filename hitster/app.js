@@ -33,10 +33,16 @@ const state = {
   deviceId: null,
   deck: [],            // remaining track pool
   current: null,       // track being guessed this turn
-  players: [],         // {name, timeline:[track], }
+  players: [],         // {name, timeline:[track], tokens}
   turn: 0,
   targetCards: 10,
+  startTokens: 2,
+  maxTokens: 3,
   awaitingNext: false,
+  activePlacement: null, // slot the active player chose this turn
+  steals: [],            // [{playerIndex, slotIndex}] challenges this turn
+  stealing: null,        // player index currently placing a steal
+  namingClaimed: false,
 };
 
 /* ---------------------------- helpers ---------------------------- */
@@ -274,9 +280,10 @@ function insertSorted(timeline, card) {
 }
 
 function startGame() {
-  // Each player starts with one revealed card on their timeline.
+  // Each player starts with one revealed card on their timeline + tokens.
   for (const p of state.players) {
     p.timeline = [];
+    p.tokens = state.startTokens;
     insertSorted(p.timeline, drawCard());
   }
   state.turn = 0;
@@ -292,28 +299,41 @@ function renderScoreboard(containerId) {
   state.players.forEach((p, i) => {
     const chip = document.createElement("div");
     chip.className = "score-chip" + (i === state.turn ? " active" : "");
-    chip.innerHTML = `${p.name}<span class="pts">${p.timeline.length}/${state.targetCards}</span>`;
+    chip.innerHTML =
+      `${escapeHtml(p.name)}<span class="pts">${p.timeline.length}/${state.targetCards}</span>` +
+      `<span class="tokens">${"🪙".repeat(p.tokens) || "—"}</span>`;
     c.appendChild(chip);
   });
 }
 
 function renderGame() {
+  // clear per-turn challenge state
+  state.activePlacement = null;
+  state.steals = [];
+  state.stealing = null;
+
   renderScoreboard("scoreboard");
   $("turn-player").textContent = currentPlayer().name;
+  $("timeline-owner").textContent = "Your timeline";
+  $("timeline-help").textContent =
+    "Tap the gap where the mystery song fits by release year (oldest → newest).";
 
   // reset per-turn UI
   $("now-playing").classList.add("hidden");
   $("reveal").classList.add("hidden");
   $("turn-actions").classList.add("hidden");
+  $("challenge-panel").classList.add("hidden");
+  $("naming-bonus").classList.add("hidden");
   $("play-btn").disabled = false;
   $("pause-btn").disabled = true;
   $("replay-btn").disabled = true;
 
-  renderTimeline(false);
+  renderTimeline(currentPlayer(), false);
 }
 
-function renderTimeline(active) {
-  const tl = currentPlayer().timeline;
+/** Render the given player's timeline. If active, slots are clickable. */
+function renderTimeline(player, active, onSlotClick) {
+  const tl = player.timeline;
   const container = $("timeline");
   container.innerHTML = "";
 
@@ -323,11 +343,10 @@ function renderTimeline(active) {
   }
 
   for (let i = 0; i <= tl.length; i++) {
-    // slot before card i
     const slot = document.createElement("div");
     slot.className = "tl-slot" + (active ? " active" : "");
     slot.textContent = active ? "+" : "·";
-    if (active) slot.onclick = () => makeGuess(i);
+    if (active && onSlotClick) slot.onclick = () => onSlotClick(i);
     container.appendChild(slot);
 
     if (i < tl.length) {
@@ -362,46 +381,154 @@ async function onPlay() {
     $("now-playing").classList.remove("hidden");
     $("pause-btn").disabled = false;
     $("replay-btn").disabled = false;
-    renderTimeline(true); // enable guess slots
+    renderTimeline(currentPlayer(), true, makeGuess); // enable guess slots
   } catch (e) {
     $("play-btn").disabled = false;
     toast(e.message);
   }
 }
 
+/* ── active player commits a placement → enter steal phase ─────────── */
 async function makeGuess(slotIndex) {
   if (!state.current || state.awaitingNext) return;
   await pausePlayback();
 
-  const p = currentPlayer();
-  const correct = isCorrectPlacement(p.timeline, slotIndex, state.current.year);
-  const card = state.current;
-
-  if (correct) insertSorted(p.timeline, card);
-
-  // reveal
-  const r = $("reveal");
-  r.className = "reveal " + (correct ? "correct" : "wrong");
-  r.innerHTML = `
-    <div class="year">${card.year}</div>
-    <div class="song-title">${escapeHtml(card.name)}</div>
-    <div class="song-artist">${escapeHtml(card.artist)}</div>
-    <div class="verdict">${correct ? "✅ Correct — card kept!" : "❌ Wrong — card discarded."}</div>`;
-  r.classList.remove("hidden");
-
-  renderTimeline(false);
-  renderScoreboard("scoreboard");
+  state.activePlacement = slotIndex;
   $("pause-btn").disabled = true;
   $("replay-btn").disabled = true;
+
+  // lock the active player's timeline view
+  $("timeline-owner").textContent = `${currentPlayer().name}'s placement (locked)`;
+  $("timeline-help").textContent = "";
+  renderTimeline(currentPlayer(), false);
+
+  const eligible = state.players.some((p, i) => i !== state.turn && p.tokens > 0);
+  if (!eligible) {
+    resolveTurn(); // no one can steal — straight to reveal
+    return;
+  }
+  renderChallengePhase();
+}
+
+function alreadyStole(playerIndex) {
+  return state.steals.some((s) => s.playerIndex === playerIndex);
+}
+
+function renderChallengePhase() {
+  $("challenge-panel").classList.remove("hidden");
+  $("challenge-text").textContent =
+    "Other players may spend a 🪙 to place the song on their own timeline. " +
+    "If the active player is wrong and you're right, you steal the card.";
+
+  const wrap = $("challenge-buttons");
+  wrap.innerHTML = "";
+  state.players.forEach((p, i) => {
+    if (i === state.turn) return;
+    const btn = document.createElement("button");
+    const can = p.tokens > 0 && !alreadyStole(i);
+    btn.disabled = !can;
+    btn.textContent = alreadyStole(i)
+      ? `${p.name} — placed ✓`
+      : `${p.name} steal (🪙 ${p.tokens})`;
+    btn.onclick = () => startSteal(i);
+    wrap.appendChild(btn);
+  });
+}
+
+function startSteal(playerIndex) {
+  const p = state.players[playerIndex];
+  if (p.tokens <= 0 || alreadyStole(playerIndex)) return;
+  p.tokens -= 1; // token is spent the moment you challenge
+  renderScoreboard("scoreboard");
+
+  state.stealing = playerIndex;
+  $("challenge-panel").classList.add("hidden");
+  $("timeline-owner").textContent = `${p.name}: place the song to STEAL it`;
+  $("timeline-help").textContent = "Tap the gap on your own timeline.";
+  renderTimeline(p, true, (slot) => {
+    state.steals.push({ playerIndex, slotIndex: slot });
+    state.stealing = null;
+    $("timeline-owner").textContent = `${currentPlayer().name}'s placement (locked)`;
+    $("timeline-help").textContent = "";
+    renderTimeline(currentPlayer(), false);
+    renderChallengePhase();
+  });
+}
+
+/* ── reveal the year and resolve the active guess + any steals ─────── */
+function resolveTurn() {
+  $("challenge-panel").classList.add("hidden");
+  const card = state.current;
+  const year = card.year;
+  const active = currentPlayer();
+
+  const activeCorrect = isCorrectPlacement(active.timeline, state.activePlacement, year);
+
+  let winner = null;
+  let outcome = "";
+  if (activeCorrect) {
+    insertSorted(active.timeline, card);
+    winner = active;
+    outcome = "✅ Correct — card kept!";
+  } else {
+    // first challenger (in challenge order) with a correct placement steals it
+    const good = state.steals.find((s) =>
+      isCorrectPlacement(state.players[s.playerIndex].timeline, s.slotIndex, year)
+    );
+    if (good) {
+      const thief = state.players[good.playerIndex];
+      insertSorted(thief.timeline, card);
+      winner = thief;
+      outcome = `❌ ${active.name} was wrong — 🪙 ${thief.name} stole the card!`;
+    } else {
+      outcome =
+        state.steals.length > 0
+          ? "❌ Wrong, and no steal landed — card discarded."
+          : "❌ Wrong — card discarded.";
+    }
+  }
+
+  const r = $("reveal");
+  r.className = "reveal " + (winner === active ? "correct" : "wrong");
+  r.innerHTML = `
+    <div class="year">${year}</div>
+    <div class="song-title">${escapeHtml(card.name)}</div>
+    <div class="song-artist">${escapeHtml(card.artist)}</div>
+    <div class="verdict">${escapeHtml(outcome)}</div>`;
+  r.classList.remove("hidden");
+
+  renderTimeline(active, false);
+  renderScoreboard("scoreboard");
 
   state.awaitingNext = true;
   state.current = null;
 
-  if (p.timeline.length >= state.targetCards) {
-    setTimeout(() => endGame(p), 1200);
+  // naming bonus: the active player may earn a token for naming title & artist
+  state.namingClaimed = false;
+  const nb = $("naming-bonus");
+  if (active.tokens < state.maxTokens) {
+    $("naming-text").textContent = `Did ${active.name} also name the title & artist?`;
+    $("award-token-btn").disabled = false;
+    nb.classList.remove("hidden");
+  } else {
+    nb.classList.add("hidden");
+  }
+
+  if (winner && winner.timeline.length >= state.targetCards) {
+    setTimeout(() => endGame(winner), 1400);
   } else {
     $("turn-actions").classList.remove("hidden");
   }
+}
+
+function awardNamingToken() {
+  if (state.namingClaimed) return;
+  const active = currentPlayer();
+  active.tokens = Math.min(state.maxTokens, active.tokens + 1);
+  state.namingClaimed = true;
+  $("award-token-btn").disabled = true;
+  renderScoreboard("scoreboard");
+  toast(`${active.name} earned a 🪙 for naming the tune!`);
 }
 
 function nextTurn() {
@@ -472,8 +599,11 @@ function refreshStartButton() {
 
 async function onStart() {
   const names = getPlayerNames();
-  state.players = names.map((n) => ({ name: n, timeline: [] }));
+  state.players = names.map((n) => ({ name: n, timeline: [], tokens: 0 }));
   state.targetCards = Math.max(3, parseInt($("target-cards").value, 10) || 10);
+  state.startTokens = Math.max(0, parseInt($("start-tokens").value, 10) || 0);
+  state.maxTokens = Math.max(1, parseInt($("max-tokens").value, 10) || 1);
+  state.startTokens = Math.min(state.startTokens, state.maxTokens);
 
   $("start-btn").disabled = true;
   $("start-btn").textContent = "Loading songs…";
@@ -563,6 +693,8 @@ async function boot() {
   $("replay-btn").onclick = async () => {
     if (state.current) await playTrack(state.current.uri);
   };
+  $("reveal-btn").onclick = resolveTurn;
+  $("award-token-btn").onclick = awardNamingToken;
   $("next-turn-btn").onclick = nextTurn;
   $("play-again-btn").onclick = () => window.location.reload();
 
