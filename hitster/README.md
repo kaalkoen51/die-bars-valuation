@@ -11,11 +11,29 @@ flow, and playback uses the **Web Playback SDK**.
 
 ## Requirements
 
-- A **Spotify Premium** account (the Web Playback SDK only streams full songs
-  for Premium users).
+- A **Spotify Premium** account (Spotify only allows app-controlled playback for
+  Premium users).
 - A free Spotify **Client ID** (see below).
-- A modern desktop browser (Chrome/Edge/Firefox). The Web Playback SDK does not
-  work on iOS browsers.
+- Somewhere to play the audio:
+  - **Desktop:** plays in the browser tab via the Web Playback SDK, or
+  - **Phone / anywhere:** the app drives the **Spotify app** on your device via
+    Spotify Connect (works on iPhone & Android — the in-browser player does
+    *not* work on mobile browsers, so this is how phones play).
+
+## Playing on your phone
+
+The app picks a **playback device** after you connect. On a phone:
+
+1. Host the app over HTTPS (see *Deploy to GitHub Pages* below) and open that URL
+   in your phone's browser.
+2. Connect Spotify as usual.
+3. Open the **Spotify app** on the same phone and play any track for a second,
+   then pause — this makes the app an active Spotify Connect device.
+4. Back in the game, tap **Refresh devices** and select your phone from the
+   *"Play audio through"* dropdown.
+5. Play. Audio comes out of the Spotify app (it keeps playing in the
+   background); you guess in the browser. First reveal may take a moment to spin
+   the Spotify app up.
 
 ## One-time Spotify setup
 
@@ -42,6 +60,26 @@ python3 -m http.server 5173 --bind 127.0.0.1
 ```
 
 Then open `http://127.0.0.1:5173/` and register that URL as your redirect URI.
+
+## Deploy to GitHub Pages (recommended for phone use)
+
+Spotify needs an `https://` redirect URI for phones, and GitHub Pages gives you
+one for free.
+
+1. **Push the code** (this repo) to GitHub on the default branch.
+2. In the repo, go to **Settings → Pages**. Under *Build and deployment*, set
+   *Source* to **Deploy from a branch**, pick your branch and the **/ (root)**
+   folder, then **Save**.
+3. Wait ~1 minute. Your site goes live at:
+   `https://<your-user>.github.io/<repo-name>/hitster/`
+   (the `/hitster/` suffix because the app lives in that subfolder).
+4. **Register that exact URL** as a Redirect URI in your Spotify app settings —
+   include the trailing slash. The app also shows the precise value to copy.
+5. Open the Pages URL on your phone and play.
+
+> The whole app is static files, so GitHub Pages serves it directly — no build
+> step. Your Client ID is not a secret (PKCE is designed for public clients), so
+> it's fine to use on a public Pages site.
 
 ## How to play
 

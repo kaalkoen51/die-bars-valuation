@@ -6,6 +6,10 @@
 
 "use strict";
 
+// Prefilled (but still editable) playlist. Paste a Spotify playlist link/URI
+// here to set the game's default deck.
+const DEFAULT_PLAYLIST = "";
+
 const SCOPES = [
   "streaming",
   "user-read-email",
@@ -29,8 +33,9 @@ const LS = {
 const state = {
   token: null,
   tokenExpiry: 0,
-  player: null,        // Web Playback SDK player
-  deviceId: null,
+  player: null,        // Web Playback SDK player (desktop in-browser device)
+  sdkDeviceId: null,   // device id of the in-browser SDK player
+  deviceId: null,      // currently selected playback target (any device)
   deck: [],            // remaining track pool
   current: null,       // track being guessed this turn
   players: [],         // {name, timeline:[track], tokens}
@@ -215,6 +220,7 @@ async function loadDeck(playlistInput) {
 }
 
 async function playTrack(uri) {
+  if (!state.deviceId) throw new Error("No playback device selected.");
   await api(`/me/player/play?device_id=${state.deviceId}`, {
     method: "PUT",
     body: JSON.stringify({ uris: [uri] }),
@@ -222,7 +228,17 @@ async function playTrack(uri) {
 }
 
 async function pausePlayback() {
-  if (state.player) await state.player.pause();
+  // Works for any active device (in-browser SDK or a phone's Spotify app).
+  try {
+    await api("/me/player/pause", { method: "PUT" });
+  } catch (_) {
+    /* nothing playing — ignore */
+  }
+}
+
+async function listDevices() {
+  const data = await api("/me/player/devices");
+  return (data && data.devices) || [];
 }
 
 /* ====================================================================
@@ -238,7 +254,7 @@ function initPlayer() {
       });
 
       player.addListener("ready", ({ device_id }) => {
-        state.deviceId = device_id;
+        state.sdkDeviceId = device_id;
         state.player = player;
         resolve(player);
       });
@@ -585,16 +601,58 @@ function getPlayerNames() {
 
 function refreshStartButton() {
   const names = getPlayerNames();
-  const connected = !!state.deviceId;
+  const connected = !!state.token;
+  const device = !!state.deviceId;
   const playlist = $("playlist-input").value.trim();
-  const ok = connected && names.length >= 1 && playlist.length > 0;
+  const ok = connected && device && names.length >= 1 && playlist.length > 0;
   $("start-btn").disabled = !ok;
 
   const hint = [];
   if (!connected) hint.push("connect Spotify");
+  else if (!device) hint.push("choose a playback device");
   if (!playlist) hint.push("add a playlist");
   if (names.length < 1) hint.push("add at least one player");
   $("setup-hint").textContent = hint.length ? "Still need to: " + hint.join(", ") + "." : "";
+}
+
+/* Populate the playback-device dropdown (in-browser SDK + Spotify Connect). */
+async function refreshDevices() {
+  const select = $("device-select");
+  try {
+    const devices = await listDevices();
+    const opts = [];
+    if (state.sdkDeviceId) {
+      opts.push({ id: state.sdkDeviceId, label: "This browser (Hitster) — desktop only" });
+    }
+    for (const d of devices) {
+      if (d.id === state.sdkDeviceId) continue; // avoid duplicate
+      opts.push({ id: d.id, label: `${d.name} (${d.type})${d.is_active ? " • active" : ""}` });
+    }
+
+    const previous = state.deviceId;
+    select.innerHTML = "";
+    if (opts.length === 0) {
+      select.innerHTML = '<option value="">No devices found — open Spotify, play a song, then Refresh</option>';
+      state.deviceId = null;
+    } else {
+      for (const o of opts) {
+        const el = document.createElement("option");
+        el.value = o.id;
+        el.textContent = o.label;
+        select.appendChild(el);
+      }
+      // keep previous choice, else prefer an active Connect device, else SDK/first
+      const active = devices.find((d) => d.is_active);
+      state.deviceId =
+        (previous && opts.some((o) => o.id === previous) && previous) ||
+        (active && active.id) ||
+        opts[0].id;
+      select.value = state.deviceId;
+    }
+  } catch (e) {
+    toast("Couldn't list devices: " + e.message);
+  }
+  refreshStartButton();
 }
 
 async function onStart() {
@@ -628,15 +686,31 @@ async function onStart() {
 async function finishConnect() {
   setStatus("Connecting…", "connecting");
   try {
-    await initPlayer();
-    setStatus("Connected ✓", "connected");
-    $("connect-btn").textContent = "Connected ✓";
-    $("connect-btn").disabled = true;
-    refreshStartButton();
+    const me = await api("/me");
+    if (me.product !== "premium") {
+      setStatus("Premium required", "disconnected");
+      toast("This account isn't Premium. Spotify only allows app-controlled playback for Premium users.", 6000);
+      return;
+    }
   } catch (e) {
     setStatus("Connection failed", "disconnected");
     toast(e.message, 5000);
+    return;
   }
+
+  setStatus("Connected ✓", "connected");
+  $("connect-btn").textContent = "Connected ✓";
+  $("connect-btn").disabled = true;
+  $("device-section").classList.remove("hidden");
+
+  // The in-browser SDK player only works on desktop browsers. Try it, but
+  // don't block — phones use Spotify Connect (their own Spotify app) instead.
+  initPlayer()
+    .then(() => refreshDevices())
+    .catch(() => refreshDevices());
+
+  // also list Connect devices straight away (phones, other computers, etc.)
+  refreshDevices();
 }
 
 async function handleRedirect() {
@@ -667,7 +741,7 @@ async function boot() {
 
   // restore saved fields
   $("client-id").value = localStorage.getItem(LS.clientId) || "";
-  $("playlist-input").value = localStorage.getItem(LS.playlist) || "";
+  $("playlist-input").value = localStorage.getItem(LS.playlist) || DEFAULT_PLAYLIST;
 
   // wire setup events
   $("help-toggle").onclick = (e) => {
@@ -679,6 +753,11 @@ async function boot() {
     toast("Redirect URI copied.");
   };
   $("connect-btn").onclick = beginLogin;
+  $("refresh-devices").onclick = refreshDevices;
+  $("device-select").onchange = (e) => {
+    state.deviceId = e.target.value || null;
+    refreshStartButton();
+  };
   $("add-player").onclick = () => addPlayerRow();
   $("playlist-input").oninput = refreshStartButton;
   $("start-btn").onclick = onStart;
