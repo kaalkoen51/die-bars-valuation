@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎵 Hitster — Web Edition</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎵 <span>Hitster</span> <small>web edition</small></div>
+    <div id="connection-status" class="status disconnected">Not connected</div>
+  </header>
+
+  <main class="container">
+
+    <!-- ───────────────────────── SETUP ───────────────────────── -->
+    <section id="setup-screen" class="screen">
+      <h1>Play Hitster without the board game</h1>
+      <p class="lead">
+        A song plays — you don't see what it is. Guess where it belongs on your
+        timeline of release years. Get it right and you keep the card. First to
+        the target number of cards wins.
+      </p>
+
+      <div class="card">
+        <h2>1. Connect Spotify</h2>
+        <p class="muted">
+          Requires a <strong>Spotify Premium</strong> account (needed to play full
+          songs in the browser) and a free Spotify <strong>Client ID</strong>.
+          <a href="#" id="help-toggle">How do I get a Client ID?</a>
+        </p>
+        <div id="help-box" class="help hidden">
+          <ol>
+            <li>Go to the <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify Developer Dashboard</a> and log in.</li>
+            <li>Click <em>Create app</em>. Give it any name &amp; description.</li>
+            <li>Set the <strong>Redirect URI</strong> to exactly:
+              <code id="redirect-uri-display"></code>
+              <button type="button" class="mini" id="copy-redirect">copy</button>
+            </li>
+            <li>Under <em>APIs used</em>, tick <strong>Web Playback SDK</strong>. Save.</li>
+            <li>Open the app's <em>Settings</em> and copy the <strong>Client ID</strong> into the box below.</li>
+          </ol>
+        </div>
+
+        <label class="field">
+          <span>Spotify Client ID</span>
+          <input type="text" id="client-id" placeholder="e.g. 0a1b2c3d4e5f..." autocomplete="off" spellcheck="false" />
+        </label>
+        <button id="connect-btn" class="primary">Connect to Spotify</button>
+      </div>
+
+      <div class="card">
+        <h2>2. Choose the music</h2>
+        <label class="field">
+          <span>Spotify playlist link or URI</span>
+          <input type="text" id="playlist-input" placeholder="https://open.spotify.com/playlist/..." autocomplete="off" spellcheck="false" />
+        </label>
+        <p class="muted">
+          Pick a playlist that spans many decades — that's what makes the
+          year-guessing fun. The songs become the deck of cards.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>3. Players</h2>
+        <div id="player-list" class="player-list"></div>
+        <button id="add-player" class="ghost">+ Add player</button>
+
+        <label class="field inline">
+          <span>Cards to win</span>
+          <input type="number" id="target-cards" min="3" max="30" value="10" />
+        </label>
+      </div>
+
+      <button id="start-btn" class="primary big" disabled>Start game</button>
+      <p id="setup-hint" class="muted center"></p>
+    </section>
+
+    <!-- ───────────────────────── GAME ───────────────────────── -->
+    <section id="game-screen" class="screen hidden">
+      <div id="scoreboard" class="scoreboard"></div>
+
+      <div class="card turn-card">
+        <h2><span id="turn-player"></span>'s turn</h2>
+        <p class="muted" id="turn-instruction">
+          Listen to the mystery song, then pick the slot where you think it
+          belongs in your timeline.
+        </p>
+
+        <div class="player-controls">
+          <button id="play-btn" class="primary">▶ Play song</button>
+          <button id="pause-btn" class="ghost" disabled>⏸ Pause</button>
+          <button id="replay-btn" class="ghost" disabled>↻ Restart</button>
+        </div>
+
+        <div id="now-playing" class="now-playing hidden">
+          <div class="mystery">🎧 <span id="mystery-label">Mystery song playing…</span></div>
+        </div>
+
+        <div id="reveal" class="reveal hidden"></div>
+      </div>
+
+      <div class="card">
+        <h3>Your timeline</h3>
+        <p class="muted small">Tap the gap where the mystery song fits by release year (oldest → newest).</p>
+        <div id="timeline" class="timeline"></div>
+      </div>
+
+      <div id="turn-actions" class="turn-actions hidden">
+        <button id="next-turn-btn" class="primary big">Next player ▶</button>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── WIN ───────────────────────── -->
+    <section id="win-screen" class="screen hidden">
+      <h1>🏆 <span id="winner-name"></span> wins!</h1>
+      <div id="final-scoreboard" class="scoreboard"></div>
+      <button id="play-again-btn" class="primary big">Play again</button>
+    </section>
+
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://sdk.scdn.co/spotify-player.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
