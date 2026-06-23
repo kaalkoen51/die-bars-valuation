@@ -815,8 +815,8 @@ function alreadyStole(playerIndex) {
 function renderChallengePhase() {
   $("challenge-panel").classList.remove("hidden");
   $("challenge-text").textContent =
-    "Other players may spend a 🪙 to place the song on their own timeline. " +
-    "If the active player is wrong and you're right, you steal the card.";
+    `Other players may spend a 🪙 to pick the correct slot on ${currentPlayer().name}'s ` +
+    `timeline. If they're right and ${currentPlayer().name} was wrong, they steal the card.`;
 
   const wrap = $("challenge-buttons");
   wrap.innerHTML = "";
@@ -841,14 +841,16 @@ function startSteal(playerIndex) {
 
   state.stealing = playerIndex;
   $("challenge-panel").classList.add("hidden");
-  $("timeline-owner").textContent = `${p.name}: place the song to STEAL it`;
-  $("timeline-help").textContent = "Tap the gap on your own timeline.";
-  renderTimeline(p, true, (slot) => {
+  const active = currentPlayer();
+  $("timeline-owner").textContent = `${p.name}: pick the correct slot to STEAL`;
+  $("timeline-help").textContent =
+    `Tap the gap where it really belongs on ${active.name}'s timeline. Right + ${active.name} wrong = you take the card.`;
+  renderTimeline(active, true, (slot) => {
     state.steals.push({ playerIndex, slotIndex: slot });
     state.stealing = null;
-    $("timeline-owner").textContent = `${currentPlayer().name}'s placement (locked)`;
+    $("timeline-owner").textContent = `${active.name}'s placement (locked)`;
     $("timeline-help").textContent = "";
-    renderTimeline(currentPlayer(), false);
+    renderTimeline(active, false);
     renderChallengePhase();
   });
 }
@@ -869,9 +871,10 @@ function resolveTurn() {
     winner = active;
     outcome = "✅ Correct — card kept!";
   } else {
-    // first challenger (in challenge order) with a correct placement steals it
+    // first challenger (in challenge order) who picked the right slot on the
+    // active player's timeline steals the card (onto their own timeline)
     const good = state.steals.find((s) =>
-      isCorrectPlacement(state.players[s.playerIndex].timeline, s.slotIndex, year)
+      isCorrectPlacement(active.timeline, s.slotIndex, year)
     );
     if (good) {
       const thief = state.players[good.playerIndex];
