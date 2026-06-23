@@ -141,18 +141,27 @@ code {
 .reveal.wrong .verdict { color: var(--red); }
 
 /* timeline */
-.timeline { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; margin-top: 12px; justify-content: center; }
+.timeline {
+  display: flex; flex-wrap: nowrap; align-items: stretch; gap: 6px;
+  margin-top: 12px; padding-bottom: 10px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+.timeline::-webkit-scrollbar { height: 8px; }
+.timeline::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 .tl-card {
+  flex: 0 0 auto; scroll-snap-align: center;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
-  padding: 10px 12px; min-width: 96px; text-align: center;
+  padding: 10px 12px; min-width: 104px; max-width: 104px; text-align: center;
 }
 .tl-card .tl-year { font-size: 22px; font-weight: 800; color: var(--accent); }
 .tl-card .tl-title { font-size: 12px; color: var(--text); margin-top: 2px; line-height: 1.2; }
 .tl-card .tl-artist { font-size: 11px; color: var(--muted); }
 
 .tl-slot {
+  flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
-  min-width: 44px; border-radius: 10px; border: 2px dashed var(--border);
+  min-width: 40px; border-radius: 10px; border: 2px dashed var(--border);
   color: var(--muted); font-size: 22px; background: transparent;
 }
 .tl-slot.active { cursor: pointer; border-color: var(--accent); color: var(--accent); }
@@ -200,6 +209,10 @@ select:focus { outline: none; border-color: var(--accent); }
   padding: 12px 20px; border-radius: 10px; font-size: 14px; z-index: 50;
   box-shadow: 0 8px 30px rgba(0,0,0,.5);
 }
+
+.game-topbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.small-btn { padding: 7px 12px; font-size: 13px; }
+#exit-game-btn { background: #3a2330; color: var(--red); border: 1px solid #5a2a3a; }
 
 @media (max-width: 560px) {
   .reveal .year { font-size: 32px; }

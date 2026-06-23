@@ -490,13 +490,23 @@ function renderTimeline(player, active, onSlotClick) {
     if (i < tl.length) {
       const card = document.createElement("div");
       card.className = "tl-card";
+      const col = yearColor(tl[i].year);
+      card.style.borderTop = `5px solid ${col}`;
       card.innerHTML = `
-        <div class="tl-year">${tl[i].year}</div>
+        <div class="tl-year" style="color:${col}">${tl[i].year}</div>
         <div class="tl-title">${escapeHtml(tl[i].name)}</div>
         <div class="tl-artist">${escapeHtml(tl[i].artist)}</div>`;
       container.appendChild(card);
     }
   }
+}
+
+/* Map a release year to a colour along a decade gradient (red→violet). */
+function yearColor(year) {
+  const min = 1950, max = 2030;
+  const t = Math.max(0, Math.min(1, (year - min) / (max - min)));
+  const hue = 12 + t * 280; // warm (older) → cool (newer)
+  return `hsl(${Math.round(hue)}, 70%, 58%)`;
 }
 
 function escapeHtml(s) {
@@ -712,6 +722,17 @@ function endGame(winner) {
   showScreen("win-screen");
 }
 
+function exitGame() {
+  if (!confirm("Exit the current game and return to setup?")) return;
+  pausePlayback();
+  state.current = null;
+  state.awaitingNext = false;
+  state.deck = [];
+  state.players = [];
+  showScreen("setup-screen");
+  refreshStartButton();
+}
+
 /* ====================================================================
    SETUP UI
    ==================================================================== */
@@ -855,6 +876,8 @@ async function finishConnect() {
   setStatus("Connected ✓", "connected");
   $("connect-btn").textContent = "Connected ✓";
   $("connect-btn").disabled = true;
+  $("connect-btn").classList.add("hidden");
+  $("disconnect-btn").classList.remove("hidden");
   $("device-section").classList.remove("hidden");
 
   // The in-browser SDK player only works on desktop browsers. Try it, but
@@ -865,6 +888,30 @@ async function finishConnect() {
 
   // also list Connect devices straight away (phones, other computers, etc.)
   refreshDevices();
+}
+
+function disconnectSpotify() {
+  if (!confirm("Disconnect from Spotify?")) return;
+  pausePlayback();
+  if (state.player) {
+    try { state.player.disconnect(); } catch (_) {}
+  }
+  state.token = null;
+  state.tokenExpiry = 0;
+  state.player = null;
+  state.sdkDeviceId = null;
+  state.deviceId = null;
+  localStorage.removeItem(LS.token);
+  localStorage.removeItem(LS.scopeV);
+
+  setStatus("Not connected", "disconnected");
+  $("connect-btn").textContent = "Connect to Spotify";
+  $("connect-btn").disabled = false;
+  $("connect-btn").classList.remove("hidden");
+  $("disconnect-btn").classList.add("hidden");
+  $("device-section").classList.add("hidden");
+  $("device-select").innerHTML = "";
+  refreshStartButton();
 }
 
 async function handleRedirect() {
@@ -907,6 +954,8 @@ async function boot() {
     toast("Redirect URI copied.");
   };
   $("connect-btn").onclick = beginLogin;
+  $("disconnect-btn").onclick = disconnectSpotify;
+  $("exit-game-btn").onclick = exitGame;
   $("refresh-devices").onclick = refreshDevices;
   $("device-select").onchange = (e) => {
     state.deviceId = e.target.value || null;
