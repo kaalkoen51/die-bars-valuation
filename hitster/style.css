@@ -161,6 +161,10 @@ code {
 
 .turn-actions { margin-top: 4px; }
 
+button.full { width: 100%; }
+.or-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0 12px; color: var(--muted); font-size: 13px; }
+.or-divider::before, .or-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
 .device-section { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
 select {
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;

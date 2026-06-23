@@ -10,6 +10,79 @@
 // here to set the game's default deck.
 const DEFAULT_PLAYLIST = "https://open.spotify.com/playlist/4usB6m0N9NsfWzwdk9Jj0d";
 
+// Built-in deck: well-known songs across the decades. Each is resolved to a
+// playable Spotify track at game time via the Search API (no playlist needed).
+const BUILTIN_DECK = [
+  { title: "I Want to Hold Your Hand", artist: "The Beatles", year: 1963 },
+  { title: "(I Can't Get No) Satisfaction", artist: "The Rolling Stones", year: 1965 },
+  { title: "Good Vibrations", artist: "The Beach Boys", year: 1966 },
+  { title: "Respect", artist: "Aretha Franklin", year: 1967 },
+  { title: "Hey Jude", artist: "The Beatles", year: 1968 },
+  { title: "Born to Be Wild", artist: "Steppenwolf", year: 1968 },
+  { title: "Let It Be", artist: "The Beatles", year: 1970 },
+  { title: "Imagine", artist: "John Lennon", year: 1971 },
+  { title: "Stairway to Heaven", artist: "Led Zeppelin", year: 1971 },
+  { title: "Superstition", artist: "Stevie Wonder", year: 1972 },
+  { title: "Bohemian Rhapsody", artist: "Queen", year: 1975 },
+  { title: "Dancing Queen", artist: "ABBA", year: 1976 },
+  { title: "Hotel California", artist: "Eagles", year: 1976 },
+  { title: "Stayin' Alive", artist: "Bee Gees", year: 1977 },
+  { title: "I Will Survive", artist: "Gloria Gaynor", year: 1978 },
+  { title: "September", artist: "Earth, Wind & Fire", year: 1978 },
+  { title: "Another Brick in the Wall, Pt. 2", artist: "Pink Floyd", year: 1979 },
+  { title: "Don't Stop Believin'", artist: "Journey", year: 1981 },
+  { title: "Billie Jean", artist: "Michael Jackson", year: 1983 },
+  { title: "Every Breath You Take", artist: "The Police", year: 1983 },
+  { title: "Like a Virgin", artist: "Madonna", year: 1984 },
+  { title: "When Doves Cry", artist: "Prince", year: 1984 },
+  { title: "Take On Me", artist: "a-ha", year: 1985 },
+  { title: "Livin' on a Prayer", artist: "Bon Jovi", year: 1986 },
+  { title: "Sweet Child O' Mine", artist: "Guns N' Roses", year: 1987 },
+  { title: "Never Gonna Give You Up", artist: "Rick Astley", year: 1987 },
+  { title: "Smells Like Teen Spirit", artist: "Nirvana", year: 1991 },
+  { title: "I Will Always Love You", artist: "Whitney Houston", year: 1992 },
+  { title: "Creep", artist: "Radiohead", year: 1992 },
+  { title: "Zombie", artist: "The Cranberries", year: 1994 },
+  { title: "Wonderwall", artist: "Oasis", year: 1995 },
+  { title: "Wannabe", artist: "Spice Girls", year: 1996 },
+  { title: "No Diggity", artist: "Blackstreet", year: 1996 },
+  { title: "...Baby One More Time", artist: "Britney Spears", year: 1998 },
+  { title: "Smooth", artist: "Santana", year: 1999 },
+  { title: "Lose Yourself", artist: "Eminem", year: 2002 },
+  { title: "Hey Ya!", artist: "OutKast", year: 2003 },
+  { title: "Crazy in Love", artist: "Beyoncé", year: 2003 },
+  { title: "Seven Nation Army", artist: "The White Stripes", year: 2003 },
+  { title: "Mr. Brightside", artist: "The Killers", year: 2004 },
+  { title: "Hips Don't Lie", artist: "Shakira", year: 2006 },
+  { title: "Umbrella", artist: "Rihanna", year: 2007 },
+  { title: "Viva la Vida", artist: "Coldplay", year: 2008 },
+  { title: "Poker Face", artist: "Lady Gaga", year: 2008 },
+  { title: "I Gotta Feeling", artist: "The Black Eyed Peas", year: 2009 },
+  { title: "Rolling in the Deep", artist: "Adele", year: 2010 },
+  { title: "Someone Like You", artist: "Adele", year: 2011 },
+  { title: "Get Lucky", artist: "Daft Punk", year: 2013 },
+  { title: "Happy", artist: "Pharrell Williams", year: 2013 },
+  { title: "Uptown Funk", artist: "Mark Ronson", year: 2014 },
+  { title: "Shake It Off", artist: "Taylor Swift", year: 2014 },
+  { title: "Thinking Out Loud", artist: "Ed Sheeran", year: 2014 },
+  { title: "Hello", artist: "Adele", year: 2015 },
+  { title: "Can't Stop the Feeling!", artist: "Justin Timberlake", year: 2016 },
+  { title: "Shape of You", artist: "Ed Sheeran", year: 2017 },
+  { title: "Despacito", artist: "Luis Fonsi", year: 2017 },
+  { title: "God's Plan", artist: "Drake", year: 2018 },
+  { title: "Sunflower", artist: "Post Malone", year: 2018 },
+  { title: "Old Town Road", artist: "Lil Nas X", year: 2019 },
+  { title: "Bad Guy", artist: "Billie Eilish", year: 2019 },
+  { title: "Blinding Lights", artist: "The Weeknd", year: 2020 },
+  { title: "Watermelon Sugar", artist: "Harry Styles", year: 2020 },
+  { title: "Levitating", artist: "Dua Lipa", year: 2020 },
+  { title: "drivers license", artist: "Olivia Rodrigo", year: 2021 },
+  { title: "STAY", artist: "The Kid LAROI", year: 2021 },
+  { title: "As It Was", artist: "Harry Styles", year: 2022 },
+  { title: "Anti-Hero", artist: "Taylor Swift", year: 2022 },
+  { title: "Flowers", artist: "Miley Cyrus", year: 2023 },
+];
+
 const SCOPES = [
   "streaming",
   "user-read-email",
@@ -43,6 +116,7 @@ const state = {
   player: null,        // Web Playback SDK player (desktop in-browser device)
   sdkDeviceId: null,   // device id of the in-browser SDK player
   deviceId: null,      // currently selected playback target (any device)
+  useBuiltin: false,   // play from the built-in deck instead of a playlist
   deck: [],            // remaining track pool
   current: null,       // track being guessed this turn
   players: [],         // {name, timeline:[track], tokens}
@@ -240,12 +314,31 @@ async function loadDeck(playlistInput) {
   if (tracks.length < 5) {
     throw new Error("Need at least 5 playable songs in the playlist — found " + tracks.length + ".");
   }
-  // shuffle
-  for (let i = tracks.length - 1; i > 0; i--) {
+  return shuffle(tracks);
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [tracks[i], tracks[j]] = [tracks[j], tracks[i]];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return tracks;
+  return arr;
+}
+
+/* Build a deck from the built-in song list (URIs resolved lazily at play). */
+function builtinDeck() {
+  return shuffle(
+    BUILTIN_DECK.map((s) => ({ uri: null, name: s.title, artist: s.artist, year: s.year }))
+  );
+}
+
+/* Resolve a built-in card to a real Spotify track via the Search API. */
+async function resolveUri(card) {
+  const q = `track:${card.name} artist:${card.artist}`;
+  const data = await api(`/search?type=track&limit=1&market=from_token&q=${encodeURIComponent(q)}`);
+  const item = data && data.tracks && data.tracks.items && data.tracks.items[0];
+  if (!item || !item.uri) throw new Error("not found");
+  card.uri = item.uri;
 }
 
 async function playTrack(uri) {
@@ -422,6 +515,22 @@ async function onPlay() {
   }
   try {
     $("play-btn").disabled = true;
+    // built-in cards have no URI yet — find a playable track (skip any misses)
+    let tries = 0;
+    while (state.current && !state.current.uri && tries < 6) {
+      $("now-playing").classList.remove("hidden");
+      $("mystery-label").textContent = "Finding song…";
+      try {
+        await resolveUri(state.current);
+      } catch (_) {
+        state.current = state.deck.length ? drawCard() : null;
+        tries++;
+      }
+    }
+    if (!state.current || !state.current.uri) {
+      throw new Error("Couldn't find a playable track on Spotify.");
+    }
+    $("mystery-label").textContent = "Mystery song playing…";
     await playTrack(state.current.uri);
     $("now-playing").classList.remove("hidden");
     $("pause-btn").disabled = false;
@@ -628,18 +737,30 @@ function getPlayerNames() {
     .filter(Boolean);
 }
 
+function setBuiltin(on) {
+  state.useBuiltin = on;
+  $("builtin-btn").textContent = on
+    ? "✓ Built-in deck selected — tap to use a playlist instead"
+    : "🎵 Use built-in deck (no playlist needed)";
+  $("builtin-btn").classList.toggle("primary", on);
+  $("builtin-btn").classList.toggle("ghost", !on);
+  $("playlist-input").disabled = on;
+  if (on) $("playlist-input").value = "";
+  refreshStartButton();
+}
+
 function refreshStartButton() {
   const names = getPlayerNames();
   const connected = !!state.token;
   const device = !!state.deviceId;
-  const playlist = $("playlist-input").value.trim();
-  const ok = connected && device && names.length >= 1 && playlist.length > 0;
+  const haveMusic = state.useBuiltin || $("playlist-input").value.trim().length > 0;
+  const ok = connected && device && names.length >= 1 && haveMusic;
   $("start-btn").disabled = !ok;
 
   const hint = [];
   if (!connected) hint.push("connect Spotify");
   else if (!device) hint.push("choose a playback device");
-  if (!playlist) hint.push("add a playlist");
+  if (!haveMusic) hint.push("add a playlist or pick the built-in deck");
   if (names.length < 1) hint.push("add at least one player");
   $("setup-hint").textContent = hint.length ? "Still need to: " + hint.join(", ") + "." : "";
 }
@@ -695,8 +816,12 @@ async function onStart() {
   $("start-btn").disabled = true;
   $("start-btn").textContent = "Loading songs…";
   try {
-    state.deck = await loadDeck($("playlist-input").value);
-    localStorage.setItem(LS.playlist, $("playlist-input").value.trim());
+    if (state.useBuiltin) {
+      state.deck = builtinDeck();
+    } else {
+      state.deck = await loadDeck($("playlist-input").value);
+      localStorage.setItem(LS.playlist, $("playlist-input").value.trim());
+    }
     if (state.deck.length < state.players.length + 2) {
       throw new Error("Not enough songs for that many players.");
     }
@@ -788,7 +913,11 @@ async function boot() {
     refreshStartButton();
   };
   $("add-player").onclick = () => addPlayerRow();
-  $("playlist-input").oninput = refreshStartButton;
+  $("playlist-input").oninput = () => {
+    if ($("playlist-input").value.trim()) setBuiltin(false);
+    refreshStartButton();
+  };
+  $("builtin-btn").onclick = () => setBuiltin(!state.useBuiltin);
   $("start-btn").onclick = onStart;
 
   // game events
