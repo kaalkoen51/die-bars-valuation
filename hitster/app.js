@@ -208,7 +208,20 @@ async function loadDeck(playlistInput) {
     );
 
   while (url) {
-    const page = await api(url);
+    let page;
+    try {
+      page = await api(url);
+    } catch (e) {
+      if (/error 40[34]/.test(e.message)) {
+        throw new Error(
+          "Can't read that playlist. Spotify blocks its own personalized/editorial " +
+          "playlists (Daily Mix, Discover Weekly, Blends, 'Your Top Songs', etc.). " +
+          "Use a normal playlist that a person created and set to Public — e.g. make " +
+          "your own playlist, add songs, set it Public, and paste that link."
+        );
+      }
+      throw e;
+    }
     for (const item of page.items || []) {
       const t = item.track;
       if (!t || !t.uri || !t.album || !t.album.release_date) continue;
