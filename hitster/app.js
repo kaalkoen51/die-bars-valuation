@@ -16,7 +16,13 @@ const SCOPES = [
   "user-read-private",
   "user-modify-playback-state",
   "user-read-playback-state",
+  "playlist-read-private",
+  "playlist-read-collaborative",
 ].join(" ");
+
+// Bump when SCOPES change so cached tokens with old scopes are discarded
+// and the user is forced to re-authorize.
+const SCOPE_VERSION = "2";
 
 // Redirect back to this exact page (no query/hash) — must match the
 // Redirect URI registered in the Spotify dashboard.
@@ -27,6 +33,7 @@ const LS = {
   playlist: "hitster_playlist",
   verifier: "hitster_pkce_verifier",
   token: "hitster_token",
+  scopeV: "hitster_scope_v",
 };
 
 /* ---------------------------- state ---------------------------- */
@@ -138,10 +145,12 @@ function storeToken(data) {
     LS.token,
     JSON.stringify({ access_token: state.token, expiry: state.tokenExpiry })
   );
+  localStorage.setItem(LS.scopeV, SCOPE_VERSION);
 }
 
 function loadStoredToken() {
   try {
+    if (localStorage.getItem(LS.scopeV) !== SCOPE_VERSION) return false;
     const raw = JSON.parse(localStorage.getItem(LS.token));
     if (raw && raw.expiry > Date.now()) {
       state.token = raw.access_token;
@@ -166,7 +175,14 @@ async function api(path, options = {}) {
   });
   if (res.status === 401) throw new Error("Spotify session expired — reconnect.");
   if (!res.ok && res.status !== 204) {
-    throw new Error("Spotify API error " + res.status + ": " + (await res.text()));
+    const endpoint = path.split("?")[0];
+    let msg = `Spotify API error ${res.status} on ${endpoint}`;
+    if (res.status === 403) {
+      msg += " (Forbidden — usually a private playlist needing reconnection, " +
+             "or an account that isn't Premium)";
+    }
+    const body = await res.text();
+    throw new Error(msg + (body ? ": " + body : ""));
   }
   return res.status === 204 ? null : res.json();
 }
