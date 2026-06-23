@@ -8,7 +8,7 @@
 
 // Prefilled (but still editable) playlist. Paste a Spotify playlist link/URI
 // here to set the game's default deck.
-const DEFAULT_PLAYLIST = "";
+const DEFAULT_PLAYLIST = "https://open.spotify.com/playlist/1lB1E2FhgroJ52ptzxQoQF";
 
 const SCOPES = [
   "streaming",
