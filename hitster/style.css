@@ -196,10 +196,13 @@ select:focus { outline: none; border-color: var(--accent); }
 .challenge-buttons button:disabled { opacity: .4; }
 
 .naming-bonus {
-  display: flex; align-items: center; justify-content: center; gap: 12px;
-  margin-bottom: 12px; padding: 10px; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  margin-bottom: 12px; padding: 12px; border-radius: 10px;
   background: var(--panel-2); border: 1px solid var(--border); font-size: 14px;
+  text-align: center;
 }
+.naming-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.naming-buttons button { padding: 8px 14px; font-size: 14px; }
 
 .tl-card.stolen { border-color: var(--amber); }
 

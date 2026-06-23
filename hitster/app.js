@@ -904,16 +904,10 @@ function resolveTurn() {
   state.awaitingNext = true;
   state.current = null;
 
-  // naming bonus: the active player may earn a token for naming title & artist
-  state.namingClaimed = false;
-  const nb = $("naming-bonus");
-  if (active.tokens < state.maxTokens) {
-    $("naming-text").textContent = `Did ${active.name} also name the title & artist?`;
-    $("award-token-btn").disabled = false;
-    nb.classList.remove("hidden");
-  } else {
-    nb.classList.add("hidden");
-  }
+  // naming bonus: whoever named BOTH title & artist earns a token — the active
+  // player has priority, but a challenger who got it (when the active player
+  // didn't) takes the token instead.
+  renderNamingBonus();
 
   if (winner && winner.timeline.length >= state.targetCards) {
     setTimeout(() => endGame(winner), 1400);
@@ -922,14 +916,38 @@ function resolveTurn() {
   }
 }
 
-function awardNamingToken() {
+function renderNamingBonus() {
+  state.namingClaimed = false;
+  const nb = $("naming-bonus");
+  const wrap = $("naming-buttons");
+  wrap.innerHTML = "";
+
+  let any = false;
+  state.players.forEach((p, i) => {
+    const btn = document.createElement("button");
+    btn.className = "ghost";
+    const atMax = p.tokens >= state.maxTokens;
+    btn.disabled = atMax;
+    btn.textContent = `${p.name}${atMax ? " (max 🪙)" : ""}`;
+    btn.onclick = () => awardNamingToken(i);
+    wrap.appendChild(btn);
+    if (!atMax) any = true;
+  });
+
+  $("naming-text").textContent =
+    "🎤 Named both title & artist? Give the 🪙 to that player (active player first; else a challenger who got it):";
+  nb.classList.toggle("hidden", !any);
+}
+
+function awardNamingToken(i) {
   if (state.namingClaimed) return;
-  const active = currentPlayer();
-  active.tokens = Math.min(state.maxTokens, active.tokens + 1);
+  const p = state.players[i];
+  if (p.tokens >= state.maxTokens) return;
+  p.tokens = Math.min(state.maxTokens, p.tokens + 1);
   state.namingClaimed = true;
-  $("award-token-btn").disabled = true;
+  $("naming-buttons").querySelectorAll("button").forEach((b) => (b.disabled = true));
   renderScoreboard("scoreboard");
-  toast(`${active.name} earned a 🪙 for naming the tune!`);
+  toast(`${p.name} earned a 🪙 for naming the tune!`);
 }
 
 function nextTurn() {
@@ -1217,7 +1235,6 @@ async function boot() {
     if (state.current) await playTrack(state.current.uri);
   };
   $("reveal-btn").onclick = resolveTurn;
-  $("award-token-btn").onclick = awardNamingToken;
   $("next-turn-btn").onclick = nextTurn;
   $("play-again-btn").onclick = () => window.location.reload();
 
