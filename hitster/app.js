@@ -328,7 +328,9 @@ const SCOPES = [
 
 // Bump when SCOPES change so cached tokens with old scopes are discarded
 // and the user is forced to re-authorize.
-const SCOPE_VERSION = "2";
+// Bumped to 3 so existing sessions re-authorize once and pick up a stored
+// refresh token (enables silent token renewal / no mid-game disconnects).
+const SCOPE_VERSION = "3";
 
 // Redirect back to this exact page (no query/hash) — must match the
 // Redirect URI registered in the Spotify dashboard.
@@ -339,6 +341,7 @@ const LS = {
   playlist: "hitster_playlist",
   verifier: "hitster_pkce_verifier",
   token: "hitster_token",
+  refresh: "hitster_refresh",
   scopeV: "hitster_scope_v",
 };
 
@@ -346,6 +349,8 @@ const LS = {
 const state = {
   token: null,
   tokenExpiry: 0,
+  refreshToken: null,
+  refreshTimer: null,
   player: null,        // Web Playback SDK player (desktop in-browser device)
   sdkDeviceId: null,   // device id of the in-browser SDK player
   deviceId: null,      // currently selected playback target (any device)
@@ -362,6 +367,7 @@ const state = {
   steals: [],            // [{playerIndex, slotIndex}] challenges this turn
   stealing: null,        // player index currently placing a steal
   namingClaimed: false,
+  namingPenalized: null, // Set of player indices already penalised this turn
 };
 
 /* ---------------------------- helpers ---------------------------- */
@@ -452,26 +458,74 @@ function storeToken(data) {
     LS.token,
     JSON.stringify({ access_token: state.token, expiry: state.tokenExpiry })
   );
+  // PKCE refresh tokens rotate — keep the newest one Spotify returns.
+  if (data.refresh_token) {
+    state.refreshToken = data.refresh_token;
+    localStorage.setItem(LS.refresh, data.refresh_token);
+  }
   localStorage.setItem(LS.scopeV, SCOPE_VERSION);
+  scheduleRefresh();
 }
 
 function loadStoredToken() {
   try {
     if (localStorage.getItem(LS.scopeV) !== SCOPE_VERSION) return false;
+    state.refreshToken = localStorage.getItem(LS.refresh) || null;
     const raw = JSON.parse(localStorage.getItem(LS.token));
     if (raw && raw.expiry > Date.now()) {
       state.token = raw.access_token;
       state.tokenExpiry = raw.expiry;
+      scheduleRefresh();
       return true;
     }
   } catch (_) {}
   return false;
 }
 
+/* Renew the access token with the stored refresh token (no user action). */
+let refreshInFlight = null;
+function refreshAccessToken() {
+  if (refreshInFlight) return refreshInFlight;
+  const clientId = localStorage.getItem(LS.clientId);
+  const refresh = state.refreshToken || localStorage.getItem(LS.refresh);
+  if (!clientId || !refresh) return Promise.reject(new Error("no refresh token"));
+
+  refreshInFlight = fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refresh,
+      client_id: clientId,
+    }),
+  })
+    .then(async (res) => {
+      if (!res.ok) throw new Error("refresh failed: " + (await res.text()));
+      const data = await res.json();
+      storeToken(data);
+      return state.token;
+    })
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+/* Refresh a little before the token actually expires so playback never drops. */
+function scheduleRefresh() {
+  clearTimeout(state.refreshTimer);
+  if (!state.refreshToken) return;
+  const ms = state.tokenExpiry - Date.now() - 60000; // ~1 min before expiry
+  state.refreshTimer = setTimeout(
+    () => refreshAccessToken().catch(() => setStatus("Reconnect needed", "disconnected")),
+    Math.max(5000, ms)
+  );
+}
+
 /* ====================================================================
    SPOTIFY WEB API
    ==================================================================== */
-async function api(path, options = {}) {
+async function api(path, options = {}, _retried = false) {
   const res = await fetch("https://api.spotify.com/v1" + path, {
     ...options,
     headers: {
@@ -480,6 +534,15 @@ async function api(path, options = {}) {
       ...(options.headers || {}),
     },
   });
+  if (res.status === 401 && !_retried) {
+    // token expired mid-request — silently renew and retry once
+    try {
+      await refreshAccessToken();
+      return api(path, options, true);
+    } catch (_) {
+      throw new Error("Spotify session expired — reconnect.");
+    }
+  }
   if (res.status === 401) throw new Error("Spotify session expired — reconnect.");
   if (!res.ok && res.status !== 204) {
     const endpoint = path.split("?")[0];
@@ -605,7 +668,13 @@ function initPlayer() {
     const ready = () => {
       const player = new Spotify.Player({
         name: "Hitster Web Edition",
-        getOAuthToken: (cb) => cb(state.token),
+        getOAuthToken: async (cb) => {
+          // hand the SDK a fresh token (it re-requests this near expiry)
+          if (Date.now() > state.tokenExpiry - 30000) {
+            try { await refreshAccessToken(); } catch (_) {}
+          }
+          cb(state.token);
+        },
         volume: 0.8,
       });
 
@@ -616,7 +685,12 @@ function initPlayer() {
       });
       player.addListener("not_ready", () => {});
       player.addListener("initialization_error", ({ message }) => reject(new Error(message)));
-      player.addListener("authentication_error", ({ message }) => reject(new Error(message)));
+      player.addListener("authentication_error", ({ message }) => {
+        // token went stale — renew and let the SDK reconnect
+        refreshAccessToken()
+          .then(() => player.connect())
+          .catch(() => reject(new Error(message)));
+      });
       player.addListener("account_error", () =>
         reject(new Error("This requires a Spotify Premium account."))
       );
@@ -918,25 +992,46 @@ function resolveTurn() {
 
 function renderNamingBonus() {
   state.namingClaimed = false;
-  const nb = $("naming-bonus");
+  state.namingPenalized = new Set();
   const wrap = $("naming-buttons");
   wrap.innerHTML = "";
 
-  let any = false;
   state.players.forEach((p, i) => {
-    const btn = document.createElement("button");
-    btn.className = "ghost";
-    const atMax = p.tokens >= state.maxTokens;
-    btn.disabled = atMax;
-    btn.textContent = `${p.name}${atMax ? " (max 🪙)" : ""}`;
-    btn.onclick = () => awardNamingToken(i);
-    wrap.appendChild(btn);
-    if (!atMax) any = true;
+    const row = document.createElement("div");
+    row.className = "naming-row";
+    row.dataset.i = i;
+    const label = document.createElement("span");
+    label.className = "naming-name";
+    label.textContent = p.name;
+
+    const plus = document.createElement("button");
+    plus.className = "ghost mini-award";
+    plus.textContent = "named it ✅ +🪙";
+    plus.onclick = () => awardNamingToken(i);
+
+    const minus = document.createElement("button");
+    minus.className = "ghost mini-penalty";
+    minus.textContent = "wrong ❌ −🪙";
+    minus.onclick = () => penalizeNamingToken(i);
+
+    row.append(label, plus, minus);
+    wrap.appendChild(row);
   });
 
   $("naming-text").textContent =
-    "🎤 Named both title & artist? Give the 🪙 to that player (active player first; else a challenger who got it):";
-  nb.classList.toggle("hidden", !any);
+    "🎤 Title & artist: award a 🪙 to whoever named it (active player first, else a challenger). " +
+    "A challenger who guessed the name and got it wrong loses a 🪙.";
+  updateNamingButtons();
+  $("naming-bonus").classList.remove("hidden");
+}
+
+function updateNamingButtons() {
+  $("naming-buttons").querySelectorAll(".naming-row").forEach((row) => {
+    const i = +row.dataset.i;
+    const p = state.players[i];
+    row.querySelector(".mini-award").disabled = state.namingClaimed || p.tokens >= state.maxTokens;
+    row.querySelector(".mini-penalty").disabled = p.tokens <= 0 || state.namingPenalized.has(i);
+  });
 }
 
 function awardNamingToken(i) {
@@ -944,10 +1039,20 @@ function awardNamingToken(i) {
   const p = state.players[i];
   if (p.tokens >= state.maxTokens) return;
   p.tokens = Math.min(state.maxTokens, p.tokens + 1);
-  state.namingClaimed = true;
-  $("naming-buttons").querySelectorAll("button").forEach((b) => (b.disabled = true));
+  state.namingClaimed = true; // only one correct namer per song
   renderScoreboard("scoreboard");
+  updateNamingButtons();
   toast(`${p.name} earned a 🪙 for naming the tune!`);
+}
+
+function penalizeNamingToken(i) {
+  const p = state.players[i];
+  if (p.tokens <= 0 || state.namingPenalized.has(i)) return;
+  p.tokens -= 1;
+  state.namingPenalized.add(i);
+  renderScoreboard("scoreboard");
+  updateNamingButtons();
+  toast(`${p.name} lost a 🪙 — wrong name challenge.`);
 }
 
 function nextTurn() {
@@ -1151,12 +1256,15 @@ function disconnectSpotify() {
   if (state.player) {
     try { state.player.disconnect(); } catch (_) {}
   }
+  clearTimeout(state.refreshTimer);
   state.token = null;
   state.tokenExpiry = 0;
+  state.refreshToken = null;
   state.player = null;
   state.sdkDeviceId = null;
   state.deviceId = null;
   localStorage.removeItem(LS.token);
+  localStorage.removeItem(LS.refresh);
   localStorage.removeItem(LS.scopeV);
 
   setStatus("Not connected", "disconnected");
@@ -1245,6 +1353,14 @@ async function boot() {
   // OAuth: handle the redirect code, else restore a saved token
   await handleRedirect();
   if (!state.token) loadStoredToken();
+
+  // access token expired but we have a refresh token → renew silently
+  if (!state.token && (state.refreshToken || localStorage.getItem(LS.refresh))) {
+    if (localStorage.getItem(LS.scopeV) === SCOPE_VERSION) {
+      state.refreshToken = state.refreshToken || localStorage.getItem(LS.refresh);
+      try { await refreshAccessToken(); } catch (_) {}
+    }
+  }
 
   if (state.token) {
     await finishConnect();

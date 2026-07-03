@@ -201,8 +201,12 @@ select:focus { outline: none; border-color: var(--accent); }
   background: var(--panel-2); border: 1px solid var(--border); font-size: 14px;
   text-align: center;
 }
-.naming-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.naming-buttons button { padding: 8px 14px; font-size: 14px; }
+.naming-buttons { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.naming-row { display: flex; align-items: center; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.naming-name { min-width: 84px; text-align: right; font-weight: 600; }
+.naming-row button { padding: 7px 12px; font-size: 13px; }
+.mini-penalty { color: var(--red); border-color: #5a2a3a; }
+.mini-award:not(:disabled) { color: var(--accent); border-color: var(--accent-dark); }
 
 .tl-card.stolen { border-color: var(--amber); }
 
