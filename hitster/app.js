@@ -639,11 +639,40 @@ async function resolveUri(card) {
 }
 
 async function playTrack(uri) {
-  if (!state.deviceId) throw new Error("No playback device selected.");
-  await api(`/me/player/play?device_id=${state.deviceId}`, {
+  if (!state.deviceId) {
+    if (!(await recoverDevice())) throw noDeviceError();
+  }
+  try {
+    await sendPlay(uri);
+  } catch (e) {
+    // device went idle/away (404 Device not found) — find a live one, retry once
+    if (/error 404/.test(e.message) || /device/i.test(e.message)) {
+      showGameDeviceBar();
+      if (!(await recoverDevice())) throw noDeviceError();
+      await sendPlay(uri);
+    } else {
+      throw e;
+    }
+  }
+}
+
+function sendPlay(uri) {
+  return api(`/me/player/play?device_id=${state.deviceId}`, {
     method: "PUT",
     body: JSON.stringify({ uris: [uri] }),
   });
+}
+
+function noDeviceError() {
+  return new Error(
+    "Playback device not found. Open the Spotify app on your phone, play any song for " +
+    "a second, then tap 🔊 Device (top of screen) to reselect — then press Play again."
+  );
+}
+
+function showGameDeviceBar() {
+  const bar = $("game-device-bar");
+  if (bar) bar.classList.remove("hidden");
 }
 
 async function pausePlayback() {
@@ -1146,9 +1175,8 @@ function refreshStartButton() {
   $("setup-hint").textContent = hint.length ? "Still need to: " + hint.join(", ") + "." : "";
 }
 
-/* Populate the playback-device dropdown (in-browser SDK + Spotify Connect). */
+/* Populate the playback-device dropdowns (setup + in-game). */
 async function refreshDevices() {
-  const select = $("device-select");
   try {
     const devices = await listDevices();
     const opts = [];
@@ -1161,29 +1189,58 @@ async function refreshDevices() {
     }
 
     const previous = state.deviceId;
-    select.innerHTML = "";
     if (opts.length === 0) {
-      select.innerHTML = '<option value="">No devices found — open Spotify, play a song, then Refresh</option>';
       state.deviceId = null;
     } else {
-      for (const o of opts) {
-        const el = document.createElement("option");
-        el.value = o.id;
-        el.textContent = o.label;
-        select.appendChild(el);
-      }
       // keep previous choice, else prefer an active Connect device, else SDK/first
       const active = devices.find((d) => d.is_active);
       state.deviceId =
         (previous && opts.some((o) => o.id === previous) && previous) ||
         (active && active.id) ||
         opts[0].id;
-      select.value = state.deviceId;
     }
+    populateDeviceSelects(opts);
   } catch (e) {
     toast("Couldn't list devices: " + e.message);
   }
   refreshStartButton();
+}
+
+function populateDeviceSelects(opts) {
+  for (const id of ["device-select", "game-device-select"]) {
+    const select = $(id);
+    if (!select) continue;
+    select.innerHTML = "";
+    if (!opts.length) {
+      select.innerHTML =
+        '<option value="">No devices — open Spotify, play a song, then ↻</option>';
+      continue;
+    }
+    for (const o of opts) {
+      const el = document.createElement("option");
+      el.value = o.id;
+      el.textContent = o.label;
+      select.appendChild(el);
+    }
+    if (state.deviceId) select.value = state.deviceId;
+  }
+}
+
+/* Find a usable device again after one goes idle/missing. Returns true if set. */
+async function recoverDevice() {
+  try {
+    const devices = await listDevices();
+    if (state.deviceId && devices.some((d) => d.id === state.deviceId)) return true;
+    const active = devices.find((d) => d.is_active);
+    const opts = [];
+    if (state.sdkDeviceId) opts.push({ id: state.sdkDeviceId });
+    devices.forEach((d) => d.id !== state.sdkDeviceId && opts.push({ id: d.id }));
+    state.deviceId = (active && active.id) || (devices[0] && devices[0].id) || state.sdkDeviceId || null;
+    await refreshDevices();
+    return !!state.deviceId;
+  } catch (_) {
+    return false;
+  }
 }
 
 async function onStart() {
@@ -1323,6 +1380,16 @@ async function boot() {
   $("device-select").onchange = (e) => {
     state.deviceId = e.target.value || null;
     refreshStartButton();
+  };
+  // in-game device recovery
+  $("game-device-btn").onclick = () => {
+    $("game-device-bar").classList.toggle("hidden");
+    refreshDevices();
+  };
+  $("game-refresh-devices").onclick = () => { refreshDevices(); toast("Devices refreshed."); };
+  $("game-device-select").onchange = (e) => {
+    state.deviceId = e.target.value || null;
+    toast("Playback device set. Press Play again if needed.");
   };
   $("add-player").onclick = () => addPlayerRow();
   $("playlist-input").oninput = () => {

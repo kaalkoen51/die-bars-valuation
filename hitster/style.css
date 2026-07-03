@@ -217,7 +217,13 @@ select:focus { outline: none; border-color: var(--accent); }
   box-shadow: 0 8px 30px rgba(0,0,0,.5);
 }
 
-.game-topbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.game-topbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px; }
+.game-device-bar {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 12px;
+  padding: 10px; border-radius: 10px; background: var(--panel);
+  border: 1px solid var(--amber);
+}
+.game-device-bar select { flex: 1; }
 .small-btn { padding: 7px 12px; font-size: 13px; }
 #exit-game-btn { background: #3a2330; color: var(--red); border: 1px solid #5a2a3a; }
 

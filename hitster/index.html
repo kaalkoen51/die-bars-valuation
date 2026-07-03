@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>🎵 Hitster — Web Edition</title>
-  <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="style.css?v=14" />
 </head>
 <body>
   <header class="topbar">
@@ -120,7 +120,12 @@
     <!-- ───────────────────────── GAME ───────────────────────── -->
     <section id="game-screen" class="screen hidden">
       <div class="game-topbar">
+        <button id="game-device-btn" class="ghost small-btn">🔊 Device</button>
         <button id="exit-game-btn" class="ghost small-btn">✕ Exit game</button>
+      </div>
+      <div id="game-device-bar" class="game-device-bar hidden">
+        <select id="game-device-select"></select>
+        <button id="game-refresh-devices" class="ghost small-btn">↻</button>
       </div>
       <div id="scoreboard" class="scoreboard"></div>
 
@@ -179,6 +184,6 @@
   <div id="toast" class="toast hidden"></div>
 
   <script src="https://sdk.scdn.co/spotify-player.js"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
