@@ -9,7 +9,7 @@
 // Prefilled Spotify Client ID so allowlisted players can just click Connect
 // without pasting anything. Safe to embed: with PKCE the Client ID is a public
 // value, not a secret. Leave "" to require each user to paste their own.
-const DEFAULT_CLIENT_ID = "";
+const DEFAULT_CLIENT_ID = "48565e208019414aa7c8ca9cc046d24d";
 
 // Prefilled (but still editable) playlist. Paste a Spotify playlist link/URI
 // here to set the game's default deck.
