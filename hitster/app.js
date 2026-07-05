@@ -6,6 +6,11 @@
 
 "use strict";
 
+// Prefilled Spotify Client ID so allowlisted players can just click Connect
+// without pasting anything. Safe to embed: with PKCE the Client ID is a public
+// value, not a secret. Leave "" to require each user to paste their own.
+const DEFAULT_CLIENT_ID = "";
+
 // Prefilled (but still editable) playlist. Paste a Spotify playlist link/URI
 // here to set the game's default deck.
 const DEFAULT_PLAYLIST = "https://open.spotify.com/playlist/4usB6m0N9NsfWzwdk9Jj0d";
@@ -1361,7 +1366,7 @@ async function boot() {
   $("redirect-uri-display").textContent = REDIRECT_URI;
 
   // restore saved fields
-  $("client-id").value = localStorage.getItem(LS.clientId) || "";
+  $("client-id").value = localStorage.getItem(LS.clientId) || DEFAULT_CLIENT_ID;
   $("playlist-input").value = localStorage.getItem(LS.playlist) || DEFAULT_PLAYLIST;
 
   // wire setup events

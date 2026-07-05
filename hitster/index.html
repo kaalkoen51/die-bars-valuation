@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>🎵 Hitster — Web Edition</title>
-  <link rel="stylesheet" href="style.css?v=14" />
+  <link rel="stylesheet" href="style.css?v=15" />
 </head>
 <body>
   <header class="topbar">
@@ -52,6 +52,16 @@
         </label>
         <button id="connect-btn" class="primary">Connect to Spotify</button>
         <button id="disconnect-btn" class="ghost full hidden">Disconnect Spotify</button>
+
+        <p class="muted small">
+          👥 <strong>Playing together in one room?</strong> Only the host connects
+          Spotify — everyone else just gets added as a player below.
+          <br />
+          To let a friend host on <em>their own</em> Spotify account, they need
+          Spotify Premium and must be added to this app's allowlist (Spotify
+          Dashboard → your app → Settings → User Management), then they can
+          connect here too.
+        </p>
 
         <div id="device-section" class="device-section hidden">
           <label class="field">
@@ -184,6 +194,6 @@
   <div id="toast" class="toast hidden"></div>
 
   <script src="https://sdk.scdn.co/spotify-player.js"></script>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>
