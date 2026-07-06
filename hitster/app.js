@@ -348,6 +348,7 @@ const LS = {
   token: "hitster_token",
   refresh: "hitster_refresh",
   scopeV: "hitster_scope_v",
+  shoe: "hitster_shoe",
 };
 
 /* ---------------------------- state ---------------------------- */
@@ -360,7 +361,8 @@ const state = {
   sdkDeviceId: null,   // device id of the in-browser SDK player
   deviceId: null,      // currently selected playback target (any device)
   useBuiltin: false,   // play from the built-in deck instead of a playlist
-  deck: [],            // remaining track pool
+  shoe: null,          // persistent shuffled built-in deck (spans games)
+  deck: [],            // remaining track pool for the current game
   current: null,       // track being guessed this turn
   players: [],         // {name, timeline:[track], tokens}
   turn: 0,
@@ -740,7 +742,34 @@ function initPlayer() {
    GAME LOGIC
    ==================================================================== */
 function drawCard() {
-  return state.deck.pop();
+  const card = state.deck.pop();
+  if (state.useBuiltin) saveShoe(); // persist the built-in "shoe" as it's used
+  return card;
+}
+
+/* The built-in "shoe": a shuffled 301-card deck that persists across games so
+   songs don't repeat until the whole deck has been played through. */
+function loadShoe() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS.shoe));
+    if (Array.isArray(raw) && raw.length) state.shoe = raw;
+  } catch (_) {}
+}
+function saveShoe() {
+  try { localStorage.setItem(LS.shoe, JSON.stringify(state.deck)); } catch (_) {}
+}
+function reshuffleShoe() {
+  state.shoe = builtinDeck();
+  localStorage.setItem(LS.shoe, JSON.stringify(state.shoe));
+  updateShoeInfo();
+  toast("Deck reshuffled — all 301 songs back in play.");
+}
+function updateShoeInfo() {
+  const el = $("shoe-info");
+  if (!el) return;
+  const left = Array.isArray(state.shoe) ? state.shoe.length : BUILTIN_DECK.length;
+  el.textContent = `🎵 ${left} of ${BUILTIN_DECK.length} songs left before a reshuffle.`;
+  el.classList.toggle("hidden", !state.useBuiltin);
 }
 
 function currentPlayer() {
@@ -1161,6 +1190,8 @@ function setBuiltin(on) {
   $("builtin-btn").classList.toggle("ghost", !on);
   $("playlist-input").disabled = on;
   if (on) $("playlist-input").value = "";
+  $("reshuffle-btn").classList.toggle("hidden", !on);
+  updateShoeInfo();
   refreshStartButton();
 }
 
@@ -1260,7 +1291,13 @@ async function onStart() {
   $("start-btn").textContent = "Loading songs…";
   try {
     if (state.useBuiltin) {
-      state.deck = builtinDeck();
+      // draw from the persistent shoe; refill only when it's nearly empty, so
+      // songs don't repeat across games until the whole deck is used up
+      if (!Array.isArray(state.shoe) || state.shoe.length < state.players.length + 2) {
+        state.shoe = builtinDeck();
+      }
+      state.deck = state.shoe; // same reference — drawing persists across games
+      saveShoe();
     } else {
       state.deck = await loadDeck($("playlist-input").value);
       localStorage.setItem(LS.playlist, $("playlist-input").value.trim());
@@ -1368,6 +1405,7 @@ async function boot() {
   // restore saved fields
   $("client-id").value = localStorage.getItem(LS.clientId) || DEFAULT_CLIENT_ID;
   $("playlist-input").value = localStorage.getItem(LS.playlist) || DEFAULT_PLAYLIST;
+  loadShoe();
 
   // wire setup events
   $("help-toggle").onclick = (e) => {
@@ -1402,6 +1440,7 @@ async function boot() {
     refreshStartButton();
   };
   $("builtin-btn").onclick = () => setBuiltin(!state.useBuiltin);
+  $("reshuffle-btn").onclick = reshuffleShoe;
   $("start-btn").onclick = onStart;
 
   // game events
