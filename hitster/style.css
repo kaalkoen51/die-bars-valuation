@@ -231,3 +231,13 @@ select:focus { outline: none; border-color: var(--accent); }
   .reveal .year { font-size: 32px; }
   h1 { font-size: 23px; }
 }
+
+/* resume-in-progress banner */
+.resume-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+  background: #14331f; border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: 14px 16px; margin-bottom: 18px;
+}
+.resume-banner span { font-size: 14px; }
+.resume-actions { display: flex; gap: 8px; }

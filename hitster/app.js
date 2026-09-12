@@ -550,6 +550,7 @@ const LS = {
   scopeV: "hitster_scope_v",
   shoe: "hitster_shoe",
   shoeV: "hitster_shoe_v",
+  game: "hitster_game",
 };
 
 // Bump when BUILTIN_DECK changes so the persisted shoe rebuilds with new songs.
@@ -980,6 +981,48 @@ function updateShoeInfo() {
   el.classList.toggle("hidden", !state.useBuiltin);
 }
 
+/* ── in-progress game persistence (survives closing/reopening the app) ── */
+function saveGame() {
+  try {
+    if (!state.players.length) return;
+    localStorage.setItem(LS.game, JSON.stringify({
+      players: state.players,
+      turn: state.turn,
+      targetCards: state.targetCards,
+      startTokens: state.startTokens,
+      maxTokens: state.maxTokens,
+      useBuiltin: state.useBuiltin,
+      deck: state.deck,
+      savedAt: Date.now(),
+    }));
+  } catch (_) {}
+}
+function loadGame() {
+  try {
+    const g = JSON.parse(localStorage.getItem(LS.game));
+    if (g && Array.isArray(g.players) && g.players.length) return g;
+  } catch (_) {}
+  return null;
+}
+function clearGame() {
+  try { localStorage.removeItem(LS.game); } catch (_) {}
+}
+function restoreGame(g) {
+  state.players = g.players;
+  state.turn = g.turn || 0;
+  state.targetCards = g.targetCards;
+  state.startTokens = g.startTokens;
+  state.maxTokens = g.maxTokens;
+  state.useBuiltin = !!g.useBuiltin;
+  state.deck = g.deck || [];
+  if (state.useBuiltin) state.shoe = state.deck; // keep shoe in sync
+  state.current = null;
+  state.awaitingNext = false;
+  $("resume-banner").classList.add("hidden");
+  showScreen("game-screen");
+  renderGame();
+}
+
 function currentPlayer() {
   return state.players[state.turn];
 }
@@ -1046,6 +1089,7 @@ function renderGame() {
   $("replay-btn").disabled = true;
 
   renderTimeline(currentPlayer(), false);
+  saveGame(); // snapshot at each turn boundary so the game survives app exit
 }
 
 /** Render the given player's timeline. If active, slots are clickable. */
@@ -1350,17 +1394,20 @@ function endGame(winner) {
       sb.appendChild(chip);
     });
   pausePlayback();
+  clearGame(); // game finished — nothing to resume
   showScreen("win-screen");
 }
 
 function exitGame() {
-  if (!confirm("Exit the current game and return to setup?")) return;
+  if (!confirm("End this game and return to setup? (Closing the app instead keeps the game so you can resume it.)")) return;
   pausePlayback();
+  clearGame();
   state.current = null;
   state.awaitingNext = false;
   state.deck = [];
   state.players = [];
   showScreen("setup-screen");
+  updateShoeInfo();
   refreshStartButton();
 }
 
@@ -1651,6 +1698,12 @@ async function boot() {
   $("reshuffle-btn").onclick = reshuffleShoe;
   $("start-btn").onclick = onStart;
 
+  // resume an in-progress game (survives closing the app)
+  const savedGame = loadGame();
+  if (savedGame) $("resume-banner").classList.remove("hidden");
+  $("resume-btn").onclick = () => { const g = loadGame(); if (g) restoreGame(g); };
+  $("discard-btn").onclick = () => { clearGame(); $("resume-banner").classList.add("hidden"); };
+
   // game events
   $("play-btn").onclick = onPlay;
   $("pause-btn").onclick = async () => {
@@ -1686,6 +1739,13 @@ async function boot() {
   } else {
     setStatus("Not connected", "disconnected");
   }
+}
+
+// register the service worker so the app is installable and loads offline
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
 }
 
 boot();
